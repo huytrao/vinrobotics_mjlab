@@ -1,0 +1,4 @@
+mjlab==1.4.0
+mujoco==3.8.1
+mujoco-warp==3.8.1
+warp-lang==1.13.0

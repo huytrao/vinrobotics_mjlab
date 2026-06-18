@@ -1,0 +1,38 @@
+[flake8]
+max-line-length = 120
+# Project uses double-quoted strings throughout (black compatibility).
+inline-quotes = double
+extend-ignore =
+    # E203 whitespace before ':' (black compatibility)
+    E203,
+    # W503 line break before binary operator (black compatibility)
+    W503,
+    # E241/E221 allow aligned formatting in dicts and assignments
+    E241,
+    E221,
+    # E111/E114/E116/E117 indentation checks assume 4-space indents;
+    # this project uses 2-space indentation throughout
+    E111,
+    E114,
+    E116,
+    E117,
+    # D1xx flake8-docstrings: docstrings are not required project-wide
+    D100,
+    D101,
+    D102,
+    D103,
+    D104,
+    D105,
+    D106,
+    D107,
+    # I1xx flake8-import-order: import grouping/order is not enforced
+    I100,
+    I101,
+    I201,
+    I202
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    build,
+    dist
