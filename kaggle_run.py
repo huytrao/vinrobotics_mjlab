@@ -35,10 +35,15 @@ import sys
 import zipfile
 
 # ================== CONFIG ==================
-TASK = "VR-M3-1-Tracking-Flat"
+# Task + motion pairs that work out of the box:
+#   "Mjlab-Tracking-Flat-Unitree-G1" + MOTION_FILE="auto"
+#       -> mjlab's own hosted LAFAN1 demo motion (Unitree G1 robot)
+#   "VR-M3-1-Tracking-Flat" + MOTION_FILE="data/motion/vr_m3_1_teleop_motion.npz"
+#       -> this repo's teleop mocap motion (VR M3.1 robot)
+TASK = "Mjlab-Tracking-Flat-Unitree-G1"
 NUM_ENVS = 1024               # reduce to 256-512 if you hit GPU OOM
 MAX_ITERS = 3000              # tune to session time remaining
-MOTION_FILE = "data/motion/vr_m3_1_teleop_motion.npz"
+MOTION_FILE = "auto"          # "auto" = download mjlab's demo motion npz (G1 tasks)
 GIT_URL = "https://github.com/huytrao/vinrobotics_mjlab.git"
 USE_WANDB = False             # True needs Kaggle secret WANDB_API_KEY
 
@@ -75,8 +80,18 @@ def force_rmtree(path):
 
 
 # ---------- 1. GPU check ----------
-def detect_jacobian():
-    jacobian = "auto"
+def detect_pascal_flags():
+    """Extra sim flags for Pascal (sm_60: P100/K80) GPUs.
+
+    warp's libmathdx-backed tile ops (tile_cholesky, tile_matmul) fail to
+    compile LTO on sm_60. Two mujoco_warp code paths hit them:
+      - dense-jacobian smooth solve  -> avoided by jacobian=sparse
+      - NEWTON solver's Hessian factorization (update_gradient_cholesky_*)
+        -> avoided by solver=cg (CG uses the sparse LDL smooth solve)
+    CG needs more iterations than Newton to converge; there is an early-exit
+    tolerance check, so extra iterations only cost time when actually needed.
+    """
+    flags = []
     try:
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=name,compute_cap", "--format=csv,noheader"],
@@ -86,15 +101,16 @@ def detect_jacobian():
         for line in out.splitlines():
             gpu_name, cc = [x.strip() for x in line.split(",")]
             if int(cc.split(".")[0]) < 7:
-                jacobian = "sparse"
-                print(f"[WARN] {gpu_name} is Pascal (cc {cc}) -> forcing "
-                      "--env.sim.mujoco.jacobian=sparse (dense tile-Cholesky "
-                      "does not compile on sm_60). If training still crashes, "
-                      "switch the accelerator to T4 x2.")
+                flags = ["--env.sim.mujoco.jacobian=sparse",
+                         "--env.sim.mujoco.solver=cg",
+                         "--env.sim.mujoco.iterations=50"]
+                print(f"[WARN] {gpu_name} is Pascal (cc {cc}) -> applying "
+                      "workaround flags (sparse jacobian + CG solver). "
+                      "T4 or newer runs the tuned Newton solver instead.")
     except (FileNotFoundError, subprocess.CalledProcessError):
         print("[WARN] nvidia-smi unavailable — no GPU? Check Kaggle Accelerator setting.")
-    print("JACOBIAN =", jacobian)
-    return jacobian
+    print("Pascal workaround flags:", flags or "(none — full-speed path)")
+    return flags
 
 
 # ---------- 2. Fetch source ----------
@@ -181,10 +197,10 @@ def install_deps():
 
 
 # ---------- 5. Train ----------
-def train(jacobian, resume):
+def train(pascal_flags, resume):
     cmd = [sys.executable, "scripts/train.py", TASK,
            f"--env.scene.num-envs={NUM_ENVS}",
-           f"--env.sim.mujoco.jacobian={jacobian}",
+           *pascal_flags,
            f"--env.episode-length-s={EPISODE_LENGTH_S}",
            f"--agent.max-iterations={MAX_ITERS}",
            f"--agent.algorithm.learning-rate={LEARNING_RATE}",
@@ -273,20 +289,40 @@ def package_results():
               "from the Output tab; add it as an Input next session to resume.")
 
 
+def resolve_motion_file():
+    """Return the absolute motion npz path, downloading mjlab's demo if 'auto'.
+
+    Must run after install_deps (imports mjlab). The demo motion is the
+    LAFAN1 clip mjlab hosts on GCS for its Unitree G1 tracking demo — it only
+    matches G1 tasks (27 vs 29 joints etc. on other robots).
+    """
+    if MOTION_FILE != "auto":
+        path = os.path.join(PROJECT_DIR, MOTION_FILE)
+        assert os.path.exists(path), (
+            f"Motion file missing at {path} even after cloning — check that "
+            f"{GIT_URL} has it committed.")
+        return path
+    assert "Unitree-G1" in TASK, (
+        "MOTION_FILE='auto' downloads mjlab's G1 demo motion, which only fits "
+        "Unitree G1 tasks. For VR-M3-1 tasks set "
+        "MOTION_FILE='data/motion/vr_m3_1_teleop_motion.npz'.")
+    from mjlab.scripts.gcs import ensure_asset_downloaded
+    return str(ensure_asset_downloaded("demo_motion.npz"))
+
+
 def main():
-    jacobian = detect_jacobian()
+    pascal_flags = detect_pascal_flags()
     fetch_source()
     os.chdir(PROJECT_DIR)
 
-    motion_path = os.path.join(PROJECT_DIR, MOTION_FILE)
-    assert os.path.exists(motion_path), (
-        f"Motion file missing at {motion_path} even after cloning — check that "
-        f"{GIT_URL} has data/motion/*.npz committed.")
-    print(f"Motion file OK: {motion_path} ({os.path.getsize(motion_path)/1e6:.1f} MB)")
-
     resume = restore_checkpoints()
     install_deps()
-    train(jacobian, resume)
+
+    global MOTION_FILE
+    MOTION_FILE = resolve_motion_file()
+    print(f"Motion file: {MOTION_FILE} ({os.path.getsize(MOTION_FILE)/1e6:.1f} MB)")
+
+    train(pascal_flags, resume)
 
     ckpt = latest_checkpoint()
     if ckpt is None:
