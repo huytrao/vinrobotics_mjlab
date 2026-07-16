@@ -145,8 +145,23 @@ def install_deps():
     sh(pip + ["mjlab==1.4.0", "mujoco==3.8.1", "mujoco-warp==3.8.1",
               "warp-lang==1.13.0", "prettytable"])
     sh(pip + ["-e", ".", "--no-deps"])
-    sh(["apt-get", "-qq", "install", "-y", "libegl1", "libgl1", "libosmesa6"],
-       check=False, capture_output=True)
+
+    # System GL libs for headless EGL rendering. Kaggle GPU images usually
+    # ship them already — skip apt entirely then (an unlucky dpkg lock can
+    # make apt-get wait silently for minutes, which looks like a hang).
+    import ctypes.util
+    if ctypes.util.find_library("EGL"):
+        print("libEGL already present, skipping apt-get.")
+    else:
+        print("Installing GL libs via apt-get (up to ~2 min)...", flush=True)
+        try:
+            sh(["apt-get", "-qq", "install", "-y",
+                "libegl1", "libgl1", "libosmesa6"],
+               check=False, timeout=300,
+               env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"})
+        except subprocess.TimeoutExpired:
+            print("[WARN] apt-get timed out — continuing; EGL rendering may "
+                  "be unavailable (training itself does not need it).")
 
     os.environ["MUJOCO_GL"] = "egl"
     os.environ["PYOPENGL_PLATFORM"] = "egl"
