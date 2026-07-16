@@ -1,0 +1,117 @@
+# Copyright 2026 VinRobotics
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""VinRobotics VR M3.1 (full-body) flat-terrain motion-tracking environment.
+
+Mirrors mjlab's own Unitree G1 tracking config
+(`mjlab.tasks.tracking.config.g1.env_cfgs`), swapped to the VR M3.1 humanoid
+and its teleop mocap data (see `scripts/mocap_csv_to_motion_npz.py`).
+"""
+
+from mjlab.envs import ManagerBasedRlEnvCfg
+from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.sensor import ContactMatch, ContactSensorCfg
+from mjlab.tasks.tracking.mdp import MotionCommandCfg
+from mjlab.tasks.tracking.tracking_env_cfg import make_tracking_env_cfg
+
+from src.assets.robots import VR_M3_1_ACTION_SCALE, get_vr_m3_1_implicit_actuator_robot_cfg
+
+ROOT_BODY = "pelvis"
+TORSO_BODY = "waist_yaw_link"
+
+# Bodies whose pose/velocity are tracked against the motion reference, mirroring
+# the G1 config's mix of root + limb-end bodies.
+TRACKED_BODY_NAMES = (
+  "pelvis",
+  "left_hip_roll_link",
+  "left_knee_pitch_link",
+  "left_ankle_roll_link",
+  "right_hip_roll_link",
+  "right_knee_pitch_link",
+  "right_ankle_roll_link",
+  "waist_yaw_link",
+  "left_shoulder_roll_link",
+  "left_elbow_pitch_link",
+  "left_wrist_yaw_link",
+  "right_shoulder_roll_link",
+  "right_elbow_pitch_link",
+  "right_wrist_yaw_link",
+)
+
+END_EFFECTOR_BODY_NAMES = (
+  "left_ankle_roll_link",
+  "right_ankle_roll_link",
+  "left_wrist_yaw_link",
+  "right_wrist_yaw_link",
+)
+
+FOOT_GEOMS = r"^(left|right)_ankle_roll_link_collision_\d+$"
+
+
+def vr_m3_1_flat_tracking_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Create VR M3.1 flat-terrain motion-tracking configuration."""
+  cfg = make_tracking_env_cfg()
+
+  cfg.scene.entities = {"robot": get_vr_m3_1_implicit_actuator_robot_cfg()}
+
+  self_collision_cfg = ContactSensorCfg(
+    name="self_collision",
+    primary=ContactMatch(mode="subtree", pattern="pelvis", entity="robot"),
+    secondary=ContactMatch(mode="subtree", pattern="pelvis", entity="robot"),
+    fields=("found", "force"),
+    reduce="none",
+    num_slots=1,
+    history_length=4,
+  )
+  cfg.scene.sensors = (self_collision_cfg,)
+
+  joint_pos_action = cfg.actions["joint_pos"]
+  assert isinstance(joint_pos_action, JointPositionActionCfg)
+  joint_pos_action.scale = VR_M3_1_ACTION_SCALE
+
+  motion_cmd = cfg.commands["motion"]
+  assert isinstance(motion_cmd, MotionCommandCfg)
+  motion_cmd.anchor_body_name = TORSO_BODY
+  motion_cmd.body_names = TRACKED_BODY_NAMES
+
+  cfg.events["foot_friction"].params["asset_cfg"].geom_names = FOOT_GEOMS
+  cfg.events["base_com"].params["asset_cfg"].body_names = (TORSO_BODY,)
+
+  cfg.terminations["ee_body_pos"].params["body_names"] = END_EFFECTOR_BODY_NAMES
+
+  cfg.viewer.body_name = TORSO_BODY
+
+  # The full-body VR M3.1 has many more self-collision geoms than the base
+  # tracking config's G1-sized defaults (nconmax=35, njmax=250) budget for;
+  # match the sizing already validated for this robot in the velocity task
+  # (src/tasks/velocity/config/vr_m3_1/env_cfgs.py).
+  cfg.sim.nconmax = 256
+  cfg.sim.njmax = 700
+  cfg.sim.contact_sensor_maxmatch = 500
+  cfg.sim.mujoco.ccd_iterations = 50
+
+  if play:
+    # Effectively infinite episode length.
+    cfg.episode_length_s = int(1e9)
+
+    cfg.observations["actor"].enable_corruption = False
+    cfg.events.pop("push_robot", None)
+
+    # Disable RSI randomization.
+    motion_cmd.pose_range = {}
+    motion_cmd.velocity_range = {}
+
+    motion_cmd.sampling_mode = "start"
+
+  return cfg
