@@ -40,10 +40,10 @@ import zipfile
 #       -> mjlab's own hosted LAFAN1 demo motion (Unitree G1 robot)
 #   "VR-M3-1-Tracking-Flat" + MOTION_FILE="data/motion/vr_m3_1_teleop_motion.npz"
 #       -> this repo's teleop mocap motion (VR M3.1 robot)
-TASK = "Mjlab-Tracking-Flat-Unitree-G1"
+TASK = "VR-M3-1-Tracking-Flat"
 NUM_ENVS = 1024               # reduce to 256-512 if you hit GPU OOM
 MAX_ITERS = 3000              # tune to session time remaining
-MOTION_FILE = "auto"          # "auto" = download mjlab's demo motion npz (G1 tasks)
+MOTION_FILE = "data/motion/vr_m3_1_teleop_motion.npz"  # committed in this repo
 GIT_URL = "https://github.com/huytrao/vinrobotics_mjlab.git"
 USE_WANDB = False             # True needs Kaggle secret WANDB_API_KEY
 
