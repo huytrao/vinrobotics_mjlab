@@ -16,6 +16,23 @@ The codebase is a thin, self-contained task/config layer on top of `mjlab` — m
 runner internals, and manager framework live in the `mjlab` and `rsl_rl` packages (installed as dependencies, not
 vendored here).
 
+## Workflow: starting a new experiment
+
+`original_code` is the base codebase to branch experiments from — it's a verbatim copy of
+[`VinRobotics/vinrobotics_mjlab`](https://github.com/VinRobotics/vinrobotics_mjlab)'s `main` (the upstream/canonical
+repo this fork tracks), pushed here as its own branch so it's available without adding a second remote. `main` on
+*this* repo (`huytrao/vinrobotics_mjlab`) has diverged significantly from upstream and is not the experiment base.
+
+Every time a new experiment starts, branch from `original_code` (`git checkout -b <experiment-name>
+original_code`) rather than committing experiment-specific changes (new task configs, checkpoints, tuning) directly
+on `original_code` or `main`.
+
+To refresh `original_code` with newer upstream changes later:
+```bash
+git fetch https://github.com/VinRobotics/vinrobotics_mjlab.git main
+git push origin FETCH_HEAD:original_code
+```
+
 ## Install
 
 ```bash
