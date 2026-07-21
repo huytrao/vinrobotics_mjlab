@@ -16,6 +16,12 @@ The codebase is a thin, self-contained task/config layer on top of `mjlab` — m
 runner internals, and manager framework live in the `mjlab` and `rsl_rl` packages (installed as dependencies, not
 vendored here).
 
+## Workflow: starting a new experiment
+
+`main` is the base codebase. Every time a new experiment starts, create a new branch from `main` first
+(`git checkout -b <experiment-name> main`) rather than committing experiment-specific changes (new task configs,
+checkpoints, tuning) directly on `main`. Keep `main` as the clean, reusable base to branch from.
+
 ## Install
 
 ```bash
