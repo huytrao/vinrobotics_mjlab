@@ -15,9 +15,17 @@
 """VR M3.1 motion-tracking training on Kaggle — single-file, paste-and-run.
 
 Paste this ENTIRE file into ONE Kaggle code cell and run it. It does the
-whole pipeline: GPU check -> fetch source from GitHub -> restore previous
-checkpoints -> install deps -> train -> render video -> export ONNX -> zip
-results to /kaggle/working/results_logs.zip.
+whole pipeline: GPU check -> fetch source from GitHub (branch GIT_BRANCH) ->
+restore previous checkpoints -> install deps -> train (hard-capped at
+TRAIN_TIME_BUDGET_S wall-clock seconds) -> render video -> export ONNX ->
+zip results to /kaggle/working/results_logs.zip.
+
+This trains VR-M3-1-Tracking-Flat: motion imitation against this repo's
+teleop mocap clip (`data/motion/vr_m3_1_teleop_motion.npz`), i.e. the
+human-like-gait direction (DeepMimic/ExBody-style pose tracking, already
+implemented in mjlab's tracking task) rather than the velocity-command task.
+Uses on-policy PPO (rsl_rl) with massively-parallel MuJoCo Warp envs — no
+FastTD3 involved.
 
 Kaggle settings: Accelerator = GPU (T4 recommended; P100 auto-falls back to
 the sparse jacobian workaround), Internet = ON.
@@ -42,13 +50,18 @@ import zipfile
 #       -> this repo's teleop mocap motion (VR M3.1 robot)
 TASK = "VR-M3-1-Tracking-Flat"
 NUM_ENVS = 1024               # reduce to 256-512 if you hit GPU OOM
-MAX_ITERS = 3000              # tune to session time remaining
+MAX_ITERS = 30_000            # upper bound only — TRAIN_TIME_BUDGET_S is what actually stops training
+TRAIN_TIME_BUDGET_S = int(3.5 * 3600)  # hard wall-clock cap, leaves ~30min for install/video/export/zip
+GPU_IDS = "[0]"                # "[0, 1]" if your Kaggle session has 2 GPUs
 MOTION_FILE = "data/motion/vr_m3_1_teleop_motion.npz"  # committed in this repo
 GIT_URL = "https://github.com/huytrao/vinrobotics_mjlab.git"
+GIT_BRANCH = "experiment/tracking-motion-imitation"
 USE_WANDB = False             # True needs Kaggle secret WANDB_API_KEY
 
 LEARNING_RATE = 1.0e-3
-SAVE_INTERVAL = 500
+SAVE_INTERVAL = 200            # smaller than the 500 default: iters/sec on Kaggle is unknown ahead of
+                                # time, so more frequent checkpoints reduce progress lost if the
+                                # TRAIN_TIME_BUDGET_S wall-clock cap kills the process mid-checkpoint
 EPISODE_LENGTH_S = 10.0
 RECORD_VIDEO_DURING_TRAIN = False
 VIDEO_INTERVAL = 2000
@@ -118,7 +131,7 @@ def clone_fresh():
     os.chdir(WORKING)
     fresh = f"{WORKING}/_fresh_clone"
     force_rmtree(fresh)
-    sh(["git", "clone", GIT_URL, fresh])
+    sh(["git", "clone", "--branch", GIT_BRANCH, "--single-branch", GIT_URL, fresh])
     force_rmtree(PROJECT_DIR)
     if os.path.exists(PROJECT_DIR):
         shutil.copytree(fresh, PROJECT_DIR, dirs_exist_ok=True,
@@ -198,6 +211,15 @@ def install_deps():
 
 # ---------- 5. Train ----------
 def train(pascal_flags, resume):
+    """Run training, hard-capped at TRAIN_TIME_BUDGET_S wall-clock seconds.
+
+    MAX_ITERS is deliberately set far above what fits in the time budget —
+    per-iteration wall time on Kaggle hardware isn't known ahead of a run, so
+    a fixed iteration count either wastes budget (too low) or gets killed
+    mid-run with no checkpoint past whatever `save-interval` last wrote (too
+    high, without this wrapper). SAVE_INTERVAL periodic checkpoints mean a
+    hard kill on timeout still leaves a usable model to play/export below.
+    """
     cmd = [sys.executable, "scripts/train.py", TASK,
            f"--env.scene.num-envs={NUM_ENVS}",
            *pascal_flags,
@@ -206,14 +228,18 @@ def train(pascal_flags, resume):
            f"--agent.algorithm.learning-rate={LEARNING_RATE}",
            f"--agent.save-interval={SAVE_INTERVAL}",
            "--motion-file", MOTION_FILE,
-           "--gpu-ids", "[0]"]
+           "--gpu-ids", GPU_IDS]
     if resume:
         cmd += ["--agent.resume", "True"]
     if RECORD_VIDEO_DURING_TRAIN:
         cmd += ["--video", "True",
                 f"--video-interval={VIDEO_INTERVAL}",
                 f"--video-length={VIDEO_LENGTH}"]
-    sh(cmd)
+    try:
+        sh(cmd, timeout=TRAIN_TIME_BUDGET_S)
+    except subprocess.TimeoutExpired:
+        print(f"[INFO] Hit TRAIN_TIME_BUDGET_S={TRAIN_TIME_BUDGET_S}s -> "
+              "stopping training, continuing with the latest checkpoint.")
 
 
 def latest_checkpoint():
