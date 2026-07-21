@@ -43,6 +43,7 @@ from mjlab.viewer import ViewerConfig
 import src.tasks.velocity.mdp as mdp
 from src.assets.robots import VR_M3_1_ACTION_SCALE, get_vr_m3_1_implicit_actuator_robot_cfg
 from src.tasks.velocity.terrains.config import TERRAINS_CFG
+from .rl_cfg import vr_m3_1_ppo_runner_cfg
 
 ##
 # VR M3 1 specific constants
@@ -670,18 +671,29 @@ def vr_m3_1_rough_env_cfg(play: bool = False) -> VelocityEnvCfg:
     ##
     # Curriculum — 4-stage velocity ramp to 2 m/s forward.
     #
-    # Stage triggers are expressed in env-steps (step = iteration * num_steps_per_env,
-    # num_steps_per_env=32 in rl_cfg.py). Rescaled 10x (5000/10000/15000 -> 500/1000/1500)
-    # to match a compressed `--agent.max-iterations=2000` run instead of the default 20_001:
-    # the original thresholds assume a ~20k-iteration run and would never be reached inside
-    # 2000 iterations, leaving the policy stuck at stage 0's slow-walk range for the entire
-    # run. Scaling all 3 thresholds by the same factor as max_iterations preserves the
-    # original curriculum's *shape* (same fraction of training spent at each speed stage)
-    # while fitting it into the shorter budget. If you change --agent.max-iterations again,
-    # rescale these three `step` values by (new_max_iterations / 20_000) to match.
+    # Stage triggers are expressed as fractions of the total training budget
+    # (max_iterations * num_steps_per_env, both read from rl_cfg.py) rather than
+    # hardcoded absolute env-steps. A prior version of this file hardcoded
+    # 5000*32/10000*32/15000*32 (tuned for the default 20_001-iteration run), which
+    # was later rescaled 10x to 500*32/1000*32/1500*32 for a one-off
+    # `--agent.max-iterations=2000` run -- and that rescaled value got committed as
+    # the permanent default, silently breaking the curriculum shape for anyone
+    # running with the checked-in default max_iterations=20_001 instead (ramp would
+    # finish by ~7.5% of training instead of spreading across it). Deriving the
+    # steps from max_iterations directly means the two files can't drift out of
+    # sync again when rl_cfg.py's default changes.
+    #
+    # This does NOT auto-adjust for a one-off `--agent.max-iterations=N` CLI
+    # override (env_cfg is built before CLI parsing) -- that still requires
+    # passing a matching curriculum via config override, same as before.
     #
     # See docs/training_strategy_2h_fullbody.md for the reasoning and paper references.
     ##
+
+    _total_steps = (
+        vr_m3_1_ppo_runner_cfg().max_iterations
+        * vr_m3_1_ppo_runner_cfg().num_steps_per_env
+    )
 
     curriculum = {
         "terrain_levels": CurriculumTermCfg(
@@ -700,19 +712,19 @@ def vr_m3_1_rough_env_cfg(play: bool = False) -> VelocityEnvCfg:
                         "ang_vel_z": (-0.5, 0.5),
                     },
                     {
-                        "step": 500 * 32,
+                        "step": int(0.25 * _total_steps),
                         "lin_vel_x": (-0.5, 1.0),
                         "lin_vel_y": (-0.5, 0.5),
                         "ang_vel_z": (-0.8, 0.8),
                     },
                     {
-                        "step": 1000 * 32,
+                        "step": int(0.50 * _total_steps),
                         "lin_vel_x": (-1.0, 1.5),
                         "lin_vel_y": (-0.5, 0.5),
                         "ang_vel_z": (-1.0, 1.0),
                     },
                     {
-                        "step": 1500 * 32,
+                        "step": int(0.75 * _total_steps),
                         "lin_vel_x": (-1.0, 2.0),
                         "lin_vel_y": (-0.5, 0.5),
                         "ang_vel_z": (-1.0, 1.0),

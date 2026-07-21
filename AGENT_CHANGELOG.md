@@ -3,6 +3,26 @@
 Log of notable changes made to this repository by AI coding agents. Newest entries first. Each entry: date,
 agent/tool, what changed, and why — keep entries to a few lines; full detail belongs in commit messages/diffs.
 
+## 2026-07-22 — Claude Code
+
+- Fixed a regression from the previous entry's curriculum rescale in
+  `src/tasks/velocity/config/vr_m3_1/env_cfgs.py`: the `500/1000/1500`-iteration thresholds were tuned for a
+  one-off `--agent.max-iterations=2000` run but got committed as the permanent default, while `rl_cfg.py` kept its
+  default `max_iterations=20_001` — so anyone training `VR-M3-1-Flat`/`-Rough` without that CLI override would
+  have the curriculum finish ramping to full speed by ~7.5% of training instead of spreading across it. Replaced
+  the hardcoded absolute steps with `int(0.25/0.50/0.75 * max_iterations * num_steps_per_env)`, reading
+  `max_iterations`/`num_steps_per_env` directly from `rl_cfg.py`'s `vr_m3_1_ppo_runner_cfg()`, so the two files
+  can't drift out of sync again if the default `max_iterations` changes. Verified against `VR-M3-1-Flat` current
+  default (20,001 iterations) — stages now land at 160008/320016/480024, i.e. 25/50/75%. Note: this still does not
+  auto-adjust for a one-off CLI `--agent.max-iterations=N` override, since `env_cfg` is built before CLI parsing —
+  that limitation is unchanged and still requires a matching config override.
+- Given the limitation above, also changed `rl_cfg.py`'s checked-in default `max_iterations` for `vr_m3_1` from
+  `20_001` to `2_001` (and `save_interval` 1000 → 100) to match this branch's actual target: a ~2h Kaggle run at
+  `--agent.max-iterations=2001`. With this change the dynamically-computed curriculum thresholds match the real
+  run length by default, with no CLI-vs-config mismatch. This is a real behavior change to the checked-in
+  default — anyone running `VR-M3-1-Flat`/`-Rough` without an explicit `--agent.max-iterations` override now gets
+  a ~2001-iteration run instead of ~20,001.
+
 ## 2026-07-21 — Claude Code (2)
 
 - Swapped `AGENTS.md`/`CLAUDE.md` roles: `AGENTS.md` now holds the full, committed instructions; `CLAUDE.md` is a

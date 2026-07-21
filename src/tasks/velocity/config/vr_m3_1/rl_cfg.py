@@ -52,7 +52,7 @@ def vr_m3_1_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
         experiment_name="vr_m3_1_velocity",
         logger="wandb",  # or "tensorboard"
         wandb_project="vr_m3_1_velocity",
-        save_interval=1000,
+        save_interval=100,
         num_steps_per_env=32,
-        max_iterations=20_001,
+        max_iterations=2_001,
     )
