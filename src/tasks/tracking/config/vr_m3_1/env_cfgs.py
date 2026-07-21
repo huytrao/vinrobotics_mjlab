@@ -21,11 +21,14 @@ and its teleop mocap data (see `scripts/mocap_csv_to_motion_npz.py`).
 
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
 from mjlab.tasks.tracking.tracking_env_cfg import make_tracking_env_cfg
 
 from src.assets.robots import VR_M3_1_ACTION_SCALE, get_vr_m3_1_implicit_actuator_robot_cfg
+# Generic (not velocity-task-specific) shaping term, reused across tasks.
+from src.tasks.velocity.mdp.rewards import angular_momentum_penalty
 
 ROOT_BODY = "pelvis"
 TORSO_BODY = "waist_yaw_link"
@@ -91,6 +94,23 @@ def vr_m3_1_flat_tracking_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.events["base_com"].params["asset_cfg"].body_names = (TORSO_BODY,)
 
   cfg.terminations["ee_body_pos"].params["body_names"] = END_EFFECTOR_BODY_NAMES
+
+  # Arm-swing shaping: the pose-tracking rewards above only track legs/pelvis/
+  # waist (TRACKED_BODY_NAMES) -- arm mocap data is too noisy to track
+  # directly. Without any arm objective the policy has no reason to move the
+  # arms at all (limp/frozen arms), so penalize whole-body angular momentum
+  # instead: swinging the arms opposite the legs is exactly what keeps net
+  # angular momentum low during natural human walking, so this pushes toward
+  # arm movement without depending on the unreliable arm reference. Sensor is
+  # the MJCF's built-in <subtreeangmom name="root_angmom" body="pelvis"/>.
+  # Weight is an untuned starting point -- watch
+  # Episode_Metrics/angular_momentum_mean during training and adjust if arm
+  # motion looks suppressed (too negative) or erratic (too small).
+  cfg.rewards["angular_momentum"] = RewardTermCfg(
+    func=angular_momentum_penalty,
+    weight=-0.01,
+    params={"sensor_name": "robot/root_angmom"},
+  )
 
   cfg.viewer.body_name = TORSO_BODY
 
