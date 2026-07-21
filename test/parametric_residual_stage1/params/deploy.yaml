@@ -1,0 +1,114 @@
+joint_names: [left_hip_pitch_joint, left_hip_roll_joint, left_hip_yaw_joint, left_knee_pitch_joint,
+  left_ankle_pitch_joint, left_ankle_roll_joint, right_hip_pitch_joint, right_hip_roll_joint,
+  right_hip_yaw_joint, right_knee_pitch_joint, right_ankle_pitch_joint, right_ankle_roll_joint,
+  waist_yaw_joint, left_shoulder_pitch_joint, left_shoulder_roll_joint, left_shoulder_yaw_joint,
+  left_elbow_pitch_joint, left_wrist_yaw_joint, left_wrist_roll_joint, left_wrist_pitch_joint,
+  right_shoulder_pitch_joint, right_shoulder_roll_joint, right_shoulder_yaw_joint,
+  right_elbow_pitch_joint, right_wrist_yaw_joint, right_wrist_roll_joint, right_wrist_pitch_joint]
+joint_ids_map: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+  19, 20, 21, 22, 23, 24, 25, 26]
+step_dt: 0.02
+stiffness: [150.0, 150.0, 120.0, 200.0, 200.0, 200.0, 150.0, 150.0, 120.0, 200.0,
+  200.0, 200.0, 367.0, 140.0, 140.0, 40.0, 40.0, 30.0, 30.0, 30.0, 140.0, 140.0, 40.0,
+  40.0, 30.0, 30.0, 30.0]
+damping: [25.0, 25.0, 4.0, 10.0, 8.0, 8.0, 25.0, 25.0, 4.0, 10.0, 8.0, 8.0, 29.0,
+  30.0, 30.0, 9.0, 9.0, 6.0, 6.0, 6.0, 30.0, 30.0, 9.0, 9.0, 6.0, 6.0, 6.0]
+default_joint_pos: [-0.1, 0.0, 0.0, 0.2, -0.1, 0.0, -0.1, 0.0, 0.0, 0.2, -0.1, 0.0,
+  0.0, 0.0, 0.15, 0.0, 1.57, 0.0, 0.0, 0.0, 0.0, -0.15, 0.0, 1.57, 0.0, 0.0, 0.0]
+commands:
+  twist:
+    ranges:
+      lin_vel_x: [0.15, 0.6]
+      lin_vel_y: [0.0, 0.0]
+      ang_vel_z: [0.0, 0.0]
+      heading: null
+actions:
+  JointPositionAction:
+    clip: null
+    scale: [0.38, 0.2, 0.15, 0.45, 0.28, 0.15, 0.38, 0.2, 0.15, 0.45, 0.28, 0.15,
+      0.2, 0.32, 0.18, 0.18, 0.28, 0.1, 0.1, 0.1, 0.32, 0.18, 0.18, 0.28, 0.1, 0.1,
+      0.1]
+    offset: [-0.1, 0.0, 0.0, 0.2, -0.1, 0.0, -0.1, 0.0, 0.0, 0.2, -0.1, 0.0, 0.0,
+      0.0, 0.15, 0.0, 1.57, 0.0, 0.0, 0.0, 0.0, -0.15, 0.0, 1.57, 0.0, 0.0, 0.0]
+    initial_alpha: 0.55
+    min_frequency: 0.8
+    max_frequency: 1.1
+    duty_factor: 0.66
+    min_duty_factor: 0.62
+    max_duty_factor: 0.7
+    command_filter_alpha: 0.85
+    command_name: twist
+    command_threshold: 0.08
+    joint_names: [.*]
+    joint_ids: null
+observations:
+  base_ang_vel:
+    params: {sensor_name: robot/imu_ang_vel}
+    clip: null
+    scale: [0.25, 0.25, 0.25]
+    history_length: 5
+  projected_gravity:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0]
+    history_length: 5
+  velocity_commands:
+    params: {command_name: twist}
+    clip: null
+    scale: [1.0, 1.0, 1.0]
+    history_length: 5
+  joint_pos_rel:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 5
+  joint_vel_rel:
+    params: {}
+    clip: null
+    scale: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+      0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+      0.05, 0.05]
+    history_length: 5
+  last_action:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 5
+  gait_phase:
+    params: {action_name: joint_pos}
+    clip: null
+    scale: [1.0, 1.0]
+    history_length: 1
+  gait_frequency:
+    params: {action_name: joint_pos}
+    clip: null
+    scale: [1.0]
+    history_length: 1
+  gait_duty_factor:
+    params: {action_name: joint_pos}
+    clip: null
+    scale: [1.0]
+    history_length: 1
+  gait_strength:
+    params: {action_name: joint_pos}
+    clip: null
+    scale: [1.0]
+    history_length: 1
+  gait_alpha:
+    params: {action_name: joint_pos}
+    clip: null
+    scale: [1.0]
+    history_length: 1
+  target_foot_contacts:
+    params: {action_name: joint_pos}
+    clip: null
+    scale: [1.0, 1.0]
+    history_length: 1
+  parametric_joint_error:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 3

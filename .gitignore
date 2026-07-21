@@ -18,3 +18,6 @@ CLAUDE.md
 build
 .pre-commit-config.yaml
 mp4_to_gif.py
+.venv/
+.venv-py39-old/
+.cache/

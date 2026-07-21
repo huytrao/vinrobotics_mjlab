@@ -1,0 +1,21 @@
+{
+  "experiment_name": "vr_m3_1_parametric_residual_scratch",
+  "run_name": "parametric_residual_stage1",
+  "run_dir": "/kaggle/working/vinrobotics_mjlab/logs/rsl_rl/vr_m3_1_parametric_residual_scratch/2026-07-20_19-02-22_stage1_flat_bootstrap",
+  "artifact_root": "/kaggle/working/trained_models/parametric_residual_stage1",
+  "latest_checkpoint": "model_2499.pt",
+  "latest_checkpoint_iteration": 2499,
+  "num_envs": 1600,
+  "max_iterations": 2500,
+  "gpu_ids": "0,1",
+  "logger": "wandb",
+  "wandb_mode": "online",
+  "wandb_project": "vr_m3_1_parametric_residual_scratch",
+  "training_return_code": 0,
+  "saved_files": [
+    "model_2499.pt",
+    "params",
+    "policy.onnx",
+    "train_parametric_residual_scratch.py"
+  ]
+}
