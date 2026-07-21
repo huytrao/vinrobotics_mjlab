@@ -30,8 +30,16 @@ from src.assets.robots import VR_M3_1_ACTION_SCALE, get_vr_m3_1_implicit_actuato
 ROOT_BODY = "pelvis"
 TORSO_BODY = "waist_yaw_link"
 
-# Bodies whose pose/velocity are tracked against the motion reference, mirroring
-# the G1 config's mix of root + limb-end bodies.
+# Bodies whose pose/velocity are tracked against the motion reference.
+#
+# Legs + pelvis/waist only, arms excluded: the teleop motion npz's arm/shoulder
+# joints have velocity spikes up to ~30 rad/s (physically implausible -- almost
+# certainly mocap noise or angle-wrap artifacts), while the leg joints and root
+# height track a plausible, stable walking pattern. This task has never been
+# trained before (no checkpoint/video evidence anywhere in this repo), so the
+# first pass targets the verified-plausible half of the reference data only,
+# rather than fighting noisy arm targets on an already-unvalidated task.
+# Re-add the arm bodies below once a legs-only run is confirmed to converge.
 TRACKED_BODY_NAMES = (
   "pelvis",
   "left_hip_roll_link",
@@ -41,19 +49,13 @@ TRACKED_BODY_NAMES = (
   "right_knee_pitch_link",
   "right_ankle_roll_link",
   "waist_yaw_link",
-  "left_shoulder_roll_link",
-  "left_elbow_pitch_link",
-  "left_wrist_yaw_link",
-  "right_shoulder_roll_link",
-  "right_elbow_pitch_link",
-  "right_wrist_yaw_link",
 )
 
+# Matches TRACKED_BODY_NAMES: wrist end-effectors dropped so the `ee_body_pos`
+# termination doesn't end episodes over the noisy arm reference data above.
 END_EFFECTOR_BODY_NAMES = (
   "left_ankle_roll_link",
   "right_ankle_roll_link",
-  "left_wrist_yaw_link",
-  "right_wrist_yaw_link",
 )
 
 FOOT_GEOMS = r"^(left|right)_ankle_roll_link_collision_\d+$"
