@@ -54,5 +54,5 @@ def vr_m3_1_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
         wandb_project="vr_m3_1_velocity",
         save_interval=100,
         num_steps_per_env=32,
-        max_iterations=2_001,
+        max_iterations=2_401,
     )

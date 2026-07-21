@@ -613,6 +613,16 @@ def vr_m3_1_rough_env_cfg(play: bool = False) -> VelocityEnvCfg:
             weight=-0.1,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=(TORSO_BODY,))},
         ),
+        # Penalizes whole-body (pelvis subtree) angular momentum. Walking legs build up
+        # angular momentum about the vertical axis every stride; the cheapest way for the
+        # policy to cancel it out is to counter-swing the arms, same as humans do -- so this
+        # term is an indirect arm-swing incentive, not an explicit arm-position reward.
+        # Weight matches mjlab's own G1 humanoid config (mjlab/tasks/velocity/config/g1).
+        "angular_momentum": RewardTermCfg(
+            func=mdp.angular_momentum_penalty,
+            weight=-0.02,
+            params={"sensor_name": "robot/root_angmom"},
+        ),
         "is_terminated": RewardTermCfg(func=mdp.is_terminated, weight=-100.0),
         "joint_pos_limits": RewardTermCfg(func=mdp.joint_pos_limits, weight=-5.0),
         "self_collisions": RewardTermCfg(
