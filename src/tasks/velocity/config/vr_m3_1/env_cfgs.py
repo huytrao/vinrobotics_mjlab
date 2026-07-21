@@ -668,48 +668,27 @@ def vr_m3_1_rough_env_cfg(play: bool = False) -> VelocityEnvCfg:
     }
 
     ##
-    # Curriculum — 4-stage velocity ramp to 2 m/s forward.
+    # Curriculum — no command_vel ramp.
     #
-    # At num_steps_per_env=24 and max_iterations≈10000, total env-steps ≈ 240k.
-    # Stage triggers are expressed in env-steps (step * num_steps_per_env).
+    # Trains directly at the "twist" command's full target range (set above:
+    # lin_vel_x=(-1.0, 2.0), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-1.0, 1.0)) from
+    # step 0, instead of staging up over 4 velocity-range steps. Dropped the ramp
+    # after checking how it's actually used elsewhere:
+    #   - legged_gym (the framework rsl_rl/this repo's training loop descends
+    #     from) defaults commands.curriculum=False; only terrain.curriculum
+    #     defaults True.
+    #   - unitreerobotics/unitree_rl_gym's G1 config (trained on real, deployed
+    #     G1 hardware) does not override command curriculum either -- it trains
+    #     with static reward/command ranges from step 0.
+    #   - independent report of legged_gym runs: "command curriculum is not
+    #     useful and even degrades performance" (terrain curriculum did help).
+    # See docs/strategy.md once this run is validated for the outcome.
     ##
 
     curriculum = {
         "terrain_levels": CurriculumTermCfg(
             func=mdp.terrain_levels_vel,
             params={"command_name": "twist"},
-        ),
-        "command_vel": CurriculumTermCfg(
-            func=mdp.commands_vel,
-            params={
-                "command_name": "twist",
-                "velocity_stages": [
-                    {
-                        "step": 0,
-                        "lin_vel_x": (-0.3, 0.5),
-                        "lin_vel_y": (-0.3, 0.3),
-                        "ang_vel_z": (-0.5, 0.5),
-                    },
-                    {
-                        "step": 5000 * 32,
-                        "lin_vel_x": (-0.5, 1.0),
-                        "lin_vel_y": (-0.5, 0.5),
-                        "ang_vel_z": (-0.8, 0.8),
-                    },
-                    {
-                        "step": 10000 * 32,
-                        "lin_vel_x": (-1.0, 1.5),
-                        "lin_vel_y": (-0.5, 0.5),
-                        "ang_vel_z": (-1.0, 1.0),
-                    },
-                    {
-                        "step": 15000 * 32,
-                        "lin_vel_x": (-1.0, 2.0),
-                        "lin_vel_y": (-0.5, 0.5),
-                        "ang_vel_z": (-1.0, 1.0),
-                    },
-                ],
-            },
         ),
     }
 
