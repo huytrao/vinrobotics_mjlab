@@ -103,12 +103,21 @@ def vr_m3_1_flat_tracking_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # angular momentum low during natural human walking, so this pushes toward
   # arm movement without depending on the unreliable arm reference. Sensor is
   # the MJCF's built-in <subtreeangmom name="root_angmom" body="pelvis"/>.
-  # Weight is an untuned starting point -- watch
-  # Episode_Metrics/angular_momentum_mean during training and adjust if arm
-  # motion looks suppressed (too negative) or erratic (too small).
+  #
+  # Weight set to -0.1 (matching action_rate_l2's -1e-1 in the base tracking
+  # config, mjlab/tasks/tracking/tracking_env_cfg.py) rather than a token
+  # value: action_rate_l2 penalizes fast/large joint motion in general, which
+  # directly fights a *visible* arm swing (that requires exactly the kind of
+  # large, fast shoulder/elbow motion action_rate_l2 discourages). A weak
+  # angular-momentum weight would lose to that and the policy would just keep
+  # the arms nearly still. Still an untuned starting point -- watch
+  # Episode_Metrics/angular_momentum_mean and the pose/tracking reward curves:
+  # if legs start tracking worse after adding this, it's pulling too much
+  # optimization pressure away from the (higher-priority) leg-tracking reward
+  # and should come down.
   cfg.rewards["angular_momentum"] = RewardTermCfg(
     func=angular_momentum_penalty,
-    weight=-0.01,
+    weight=-0.1,
     params={"sensor_name": "robot/root_angmom"},
   )
 
